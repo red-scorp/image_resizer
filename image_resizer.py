@@ -40,6 +40,7 @@ def resize_image(input_path : str, output_path : str, size : int, resize_mode : 
     """
 
     try:
+        # Open the image
         image = Image.open(input_path)
 
         # Check if the image has exif metadata and contains orientation information
@@ -55,12 +56,15 @@ def resize_image(input_path : str, output_path : str, size : int, resize_mode : 
             elif orientation == 8:
                 image = image.transpose(Image.ROTATE_90)
 
+        # Prepare the image parameters for resizing
         original_width : int = image.width
         original_height : int = image.height
         result_width : int = 0
         result_height : int = 0
 
+        # Calculate the new size based on the resize mode
         if resize_mode.lower() == "thumbnail":
+            # We want to put the image into a square box of size x size with the original aspect ratio
             if image.width > image.height:
                 result_width = size
                 result_height = int((result_width * original_height) / original_width)
@@ -69,6 +73,7 @@ def resize_image(input_path : str, output_path : str, size : int, resize_mode : 
                 result_width = int((result_height * original_width) / original_height)
 
         elif resize_mode.lower() == "cover":
+            # We want the resized image to cover the whole box of size x size with the original aspect ratio
             if image.width > image.height:
                 result_height = size
                 result_width = int((result_height * original_width) / original_height)
@@ -77,11 +82,14 @@ def resize_image(input_path : str, output_path : str, size : int, resize_mode : 
                 result_height = int((result_width * original_height) / original_width)
 
         elif resize_mode.lower() == "crop":
+            # We want to crop the image to a square box of size x size
+            # Calculate the crop box
             box : tuple[int, int, int, int] = (0, 0, 0, 0)
             if image.width > image.height:
                 box = (int((original_width - original_height) / 2), 0, int((original_width + original_height) / 2), original_height)
             else:
                 box = (0, int((original_height - original_width) / 2), original_width, int((original_height + original_width) / 2))
+            # Crop the image to make it square
             image = image.crop(box)
             result_height = size
             result_width = size
@@ -90,8 +98,10 @@ def resize_image(input_path : str, output_path : str, size : int, resize_mode : 
             print(f"Unsupported resize mode: {resize_mode}")
             return False
 
+        # Resize the image
         image = image.resize((result_width, result_height), resample = Image.BICUBIC)
 
+        # Save the image with the correct format
         if format.lower() == "png":
             output_path = os.path.splitext(output_path)[0] + ".png"
             image.save(output_path, format = "PNG")
@@ -104,6 +114,7 @@ def resize_image(input_path : str, output_path : str, size : int, resize_mode : 
             print(f"Unsupported output format: {format}")
             return False
 
+        # Print verbose output to show the resized image path and size
         if verbose >= VERBOSITY_HIGH:
             print(f"Resized: {input_path} ({original_width}x{original_height}) to {output_path} ({result_width}x{result_height})")
 
@@ -126,9 +137,12 @@ def worker(input_queue : Queue, output_queue : Queue, size : int, resize_mode : 
     """
 
     while True:
+        # Get an item from the input queue
         item = input_queue.get()
-        if item is None:
+        if item is None: # Termination signal is found
             break
+
+        # Resize the image and put the success status in the output queue
         input_path, output_path = item
         success : bool = resize_image(input_path, output_path, size, resize_mode, format, verbose)
         output_queue.put(success)
@@ -147,15 +161,18 @@ def process_images(input_dir : str, output_dir : str, size : int, resize_mode : 
     :return: None
     """
 
+    # Create input and output queues for the worker processes
     input_queue : Queue = Queue()
     output_queue : Queue = Queue()
 
+    # Start worker processes to resize images
     processes : list[Process] = []
     for _ in range(num_processes):
         p : Process = Process(target = worker, args = (input_queue, output_queue, size, resize_mode, format, verbose))
         p.start()
         processes.append(p)
 
+    # Walk through the input directory and add images to the input queue
     for root, _, files in os.walk(input_dir):
         for filename in files:
             if filename.lower().endswith(('.png', '.jpg', '.jpeg')):
@@ -165,9 +182,11 @@ def process_images(input_dir : str, output_dir : str, size : int, resize_mode : 
                 os.makedirs(os.path.dirname(output_path), exist_ok = True)
                 input_queue.put((input_path, output_path))
 
+    # Add termination signals to the input queue
     for _ in range(num_processes):
         input_queue.put(None)
 
+    # Wait for all worker processes to finish and collect the results
     successes : int = 0
     all_files : int = 0
     total_files : int = sum(len(files) for _, _, files in os.walk(input_dir))
@@ -179,12 +198,13 @@ def process_images(input_dir : str, output_dir : str, size : int, resize_mode : 
         if verbose >= VERBOSITY_LOW:
             print(f"Processed: {successes}/{total_files} files ({successes / total_files * 100:.2f}%)", end = '\r')
 
+    # Join all worker processes
     for p in processes:
         p.join()
 
+    # Print verbose output to show the number of processed images
     if verbose >= VERBOSITY_LOW:
         print(f"Processed: {successes}/{total_files} files ({successes / total_files * 100:.2f}%)")
-
 
 def main() -> None:
     """
@@ -193,6 +213,7 @@ def main() -> None:
     :return: None
     """
 
+    # Parse command line arguments
     parser = ArgumentParser(description = "Resize images in a directory tree.")
     parser.add_argument("-i", "--input", required = True, help = "Input directory containing images.")
     parser.add_argument("-o", "--output", required = True, help = "Output directory to store resized images.")
@@ -203,6 +224,7 @@ def main() -> None:
     parser.add_argument("-v", "--verbose", action = "count", default = DEFAULT_VERBOSITY, help = "Verbose output.")
     args : Namespace = parser.parse_args()
 
+    # Check some input arguments for validity
     if args.format.lower() not in ["same", "png", "jpg"]:
         print(f"Unsupported output format {args.format}")
         sys.exit(1)
@@ -215,6 +237,7 @@ def main() -> None:
         print(f"Invalid size {args.size}")
         sys.exit(1)
 
+    # Start processing images
     process_images(args.input, args.output, args.size, args.resize_mode, args.format, args.verbose, args.num_processes)
 
 if __name__ == "__main__":
