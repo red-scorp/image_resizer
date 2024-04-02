@@ -42,6 +42,19 @@ def resize_image(input_path : str, output_path : str, size : int, resize_mode : 
     try:
         image = Image.open(input_path)
 
+        # Check if the image has exif metadata and contains orientation information
+        if hasattr(image, "_getexif") and image._getexif():
+            exif = dict(image._getexif().items())
+            orientation = exif.get(0x0112, 1)  # Default orientation is 1 (normal)
+
+            # Rotate the image according to its orientation
+            if orientation == 3:
+                image = image.transpose(Image.ROTATE_180)
+            elif orientation == 6:
+                image = image.transpose(Image.ROTATE_270)
+            elif orientation == 8:
+                image = image.transpose(Image.ROTATE_90)
+
         original_width : int = image.width
         original_height : int = image.height
         result_width : int = 0
