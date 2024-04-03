@@ -26,7 +26,7 @@ DEFAULT_VERBOSITY : int = VERBOSITY_NONE # Default verbosity level for output.
 DEFAULT_FORMAT : str = "same" # Default output format for resized images.
 DEFAULT_RESIZE_MODE : str = "thumbnail" # Default resize mode for images.
 
-def resize_image(input_path : str, output_path : str, size : int, resize_mode : str, normal_image : bool, mirror_image : bool, format : str, verbose : int) -> bool:
+def resize_image(input_path : str, output_path : str, size : int, resize_mode : str, normal_image : bool, mirror_image : bool, format : str) -> tuple[bool, int, str]:
     """
     Resize an image to the specified size and save it to the output path.
 
@@ -37,8 +37,7 @@ def resize_image(input_path : str, output_path : str, size : int, resize_mode : 
     :param normal_image: Flag to save normal image.
     :param mirror_image: Flag to save mirrored image.
     :param format: Output format for the resized image.
-    :param verbose: Verbosity level for output.
-    :return: ``True`` if the image was resized successfully, ``False`` otherwise.
+    :return: Tuple of boolean success value, number of generated files and a message string.
     """
 
     try:
@@ -97,8 +96,7 @@ def resize_image(input_path : str, output_path : str, size : int, resize_mode : 
             result_width = size
 
         else:
-            print(f"Unsupported resize mode: {resize_mode}")
-            return False
+            return (False, 0, f"Unsupported resize mode: {resize_mode}")
 
         # Resize the image
         image = image.resize((result_width, result_height), resample = Image.BICUBIC)
@@ -116,8 +114,7 @@ def resize_image(input_path : str, output_path : str, size : int, resize_mode : 
             elif format.lower() == "same":
                 image.save(output_path)
             else:
-                print(f"Unsupported output format: {format}")
-                return False
+                return (False, 0, f"Unsupported output format: {format}")
             all_output_list.append(output_path)
 
         if mirror_image:
@@ -133,22 +130,16 @@ def resize_image(input_path : str, output_path : str, size : int, resize_mode : 
             elif format.lower() == "same":
                 mirrored_image.save(mirrored_output_path)
             else:
-                print(f"Unsupported output format: {format}")
-                return False
+                return (False, 0, f"Unsupported output format: {format}")
             all_output_list.append(mirrored_output_path)
 
-        all_output_path : str = ",".join(all_output_list)
+        all_output_path : str = ", ".join(all_output_list)
 
-        # Print verbose output to show the resized image path and size
-        if verbose >= VERBOSITY_HIGH:
-            print(f"Resized: {input_path} ({original_width}x{original_height}) to {all_output_path} ({result_width}x{result_height})")
-
-        return True
+        return (True, len(all_output_list), f"Resized: {input_path} ({original_width}x{original_height}) to {all_output_path} ({result_width}x{result_height})")
     except Exception as e:
-        print(f"Error resizing {input_path}: {e}")
-        return False
+        return (False, 0, f"Error resizing {input_path}: {e}")
 
-def worker(input_queue : Queue, output_queue : Queue, size : int, resize_mode : str, normal_image : bool, mirror_image : bool, format : str, verbose : int) -> None:
+def worker(input_queue : Queue, output_queue : Queue, size : int, resize_mode : str, normal_image : bool, mirror_image : bool, format : str) -> None:
     """
     Worker function to resize images from the input queue and store the results in the output queue.
     
@@ -159,7 +150,6 @@ def worker(input_queue : Queue, output_queue : Queue, size : int, resize_mode : 
     :param normal_image: Flag to save normal image.
     :param mirror_image: Flag to save mirrored image.
     :param format: Output format for the resized images.
-    :param verbose: Verbosity level for output.
     :return: None
     """
 
@@ -169,10 +159,10 @@ def worker(input_queue : Queue, output_queue : Queue, size : int, resize_mode : 
         if item is None: # Termination signal is found
             break
 
-        # Resize the image and put the success status in the output queue
+        # Resize the image and put the result status in the output queue
         input_path, output_path = item
-        success : bool = resize_image(input_path, output_path, size, resize_mode, normal_image, mirror_image, format, verbose)
-        output_queue.put(success)
+        result : tuple[bool, int, str] = resize_image(input_path, output_path, size, resize_mode, normal_image, mirror_image, format)
+        output_queue.put(result)
 
 def process_images(input_dir : str, output_dir : str, size : int, resize_mode : str, normal_image : bool, mirror_image : bool, format : str, verbose : int, num_processes : int) -> None:
     """
@@ -197,9 +187,11 @@ def process_images(input_dir : str, output_dir : str, size : int, resize_mode : 
     # Start worker processes to resize images
     processes : list[Process] = []
     for _ in range(num_processes):
-        p : Process = Process(target = worker, args = (input_queue, output_queue, size, resize_mode, normal_image, mirror_image, format, verbose))
+        p : Process = Process(target = worker, args = (input_queue, output_queue, size, resize_mode, normal_image, mirror_image, format))
         p.start()
         processes.append(p)
+
+    total_files : int = 0
 
     # Walk through the input directory and add images to the input queue
     for root, _, files in os.walk(input_dir):
@@ -210,30 +202,46 @@ def process_images(input_dir : str, output_dir : str, size : int, resize_mode : 
                 output_path = os.path.join(output_dir, relative_path)
                 os.makedirs(os.path.dirname(output_path), exist_ok = True)
                 input_queue.put((input_path, output_path))
+                total_files += 1
 
     # Add termination signals to the input queue
     for _ in range(num_processes):
         input_queue.put(None)
 
-    # Wait for all worker processes to finish and collect the results
     successes : int = 0
-    all_files : int = 0
-    total_files : int = sum(len(files) for _, _, files in os.walk(input_dir))
-    while all_files < total_files:
-        success = output_queue.get()
-        all_files += 1
-        if success:
+    processed_files : int = 0
+    generated_files : int = 0
+    errors : int = 0
+
+    # Wait for all worker processes to finish and collect the results
+    while processed_files < total_files:
+        result : tuple[bool, int, str] = output_queue.get()
+        processed_files += 1
+        if result[0]:
             successes += 1
+        else:
+            errors += 1
+        generated_files += result[1]
+
+        # Print verbose output to show the result of the image processing
+        if verbose >= VERBOSITY_HIGH:
+            print(result[2])
+
+        # Print verbose output to show general progress
         if verbose >= VERBOSITY_LOW:
-            print(f"Processed: {successes}/{total_files} files ({successes / total_files * 100:.2f}%)", end = '\r')
+            print(f"Processed: {processed_files}/{total_files} files ({processed_files / total_files * 100:.2f}%)", end = '\r')
 
     # Join all worker processes
     for p in processes:
         p.join()
 
-    # Print verbose output to show the number of processed images
+    # Print verbose output to show general progress at the end
     if verbose >= VERBOSITY_LOW:
-        print(f"Processed: {successes}/{total_files} files ({successes / total_files * 100:.2f}%)")
+        print(f"Processed: {processed_files}/{total_files} files ({processed_files / total_files * 100:.2f}%)")
+
+    # Print verbose output to show the number of successes and errors
+    if verbose >= VERBOSITY_HIGH:
+        print(f"Processed files: {processed_files}, Successes: {successes}, Errors: {errors}, Generated files: {generated_files}")
 
 def main() -> None:
     """
