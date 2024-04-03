@@ -26,7 +26,7 @@ DEFAULT_VERBOSITY : int = VERBOSITY_NONE # Default verbosity level for output.
 DEFAULT_FORMAT : str = "same" # Default output format for resized images.
 DEFAULT_RESIZE_MODE : str = "thumbnail" # Default resize mode for images.
 
-def resize_image(input_path : str, output_path : str, size : int, resize_mode : str, format : str, verbose : int) -> bool:
+def resize_image(input_path : str, output_path : str, size : int, resize_mode : str, normal_image : bool, mirror_image : bool, format : str, verbose : int) -> bool:
     """
     Resize an image to the specified size and save it to the output path.
 
@@ -34,6 +34,8 @@ def resize_image(input_path : str, output_path : str, size : int, resize_mode : 
     :param output_path: Path to save the resized image.
     :param size: Size to resize the image.
     :param resize_mode: Resize mode for the image.
+    :param normal_image: Flag to save normal image.
+    :param mirror_image: Flag to save mirrored image.
     :param format: Output format for the resized image.
     :param verbose: Verbosity level for output.
     :return: ``True`` if the image was resized successfully, ``False`` otherwise.
@@ -101,29 +103,52 @@ def resize_image(input_path : str, output_path : str, size : int, resize_mode : 
         # Resize the image
         image = image.resize((result_width, result_height), resample = Image.BICUBIC)
 
-        # Save the image with the correct format
-        if format.lower() == "png":
-            output_path = os.path.splitext(output_path)[0] + ".png"
-            image.save(output_path, format = "PNG")
-        elif format.lower() == "jpg":
-            output_path = os.path.splitext(output_path)[0] + ".jpg"
-            image.save(output_path, format = "JPEG")
-        elif format.lower() == "same":
-            image.save(output_path)
-        else:
-            print(f"Unsupported output format: {format}")
-            return False
+        all_output_list : list[str] = []
+
+        if normal_image:
+            # Save the image with the correct format
+            if format.lower() == "png":
+                output_path = os.path.splitext(output_path)[0] + ".png"
+                image.save(output_path, format = "PNG")
+            elif format.lower() == "jpg":
+                output_path = os.path.splitext(output_path)[0] + ".jpg"
+                image.save(output_path, format = "JPEG")
+            elif format.lower() == "same":
+                image.save(output_path)
+            else:
+                print(f"Unsupported output format: {format}")
+                return False
+            all_output_list.append(output_path)
+
+        if mirror_image:
+            # Mirror the image and save it with the correct format
+            mirrored_image = image.transpose(Image.FLIP_LEFT_RIGHT)
+            mirrored_output_path = os.path.splitext(output_path)[0] + "_mirror" + os.path.splitext(output_path)[1]
+            if format.lower() == "png":
+                mirrored_output_path = os.path.splitext(mirrored_output_path)[0] + ".png"
+                mirrored_image.save(mirrored_output_path, format = "PNG")
+            elif format.lower() == "jpg":
+                mirrored_output_path = os.path.splitext(mirrored_output_path)[0] + ".jpg"
+                mirrored_image.save(mirrored_output_path, format = "JPEG")
+            elif format.lower() == "same":
+                mirrored_image.save(mirrored_output_path)
+            else:
+                print(f"Unsupported output format: {format}")
+                return False
+            all_output_list.append(mirrored_output_path)
+
+        all_output_path : str = ",".join(all_output_list)
 
         # Print verbose output to show the resized image path and size
         if verbose >= VERBOSITY_HIGH:
-            print(f"Resized: {input_path} ({original_width}x{original_height}) to {output_path} ({result_width}x{result_height})")
+            print(f"Resized: {input_path} ({original_width}x{original_height}) to {all_output_path} ({result_width}x{result_height})")
 
         return True
     except Exception as e:
         print(f"Error resizing {input_path}: {e}")
         return False
 
-def worker(input_queue : Queue, output_queue : Queue, size : int, resize_mode : str, format : str, verbose : int) -> None:
+def worker(input_queue : Queue, output_queue : Queue, size : int, resize_mode : str, normal_image : bool, mirror_image : bool, format : str, verbose : int) -> None:
     """
     Worker function to resize images from the input queue and store the results in the output queue.
     
@@ -131,6 +156,8 @@ def worker(input_queue : Queue, output_queue : Queue, size : int, resize_mode : 
     :param output_queue: Queue to write success status to.
     :param size: Size to resize the images.
     :param resize_mode: Resize mode for images.
+    :param normal_image: Flag to save normal image.
+    :param mirror_image: Flag to save mirrored image.
     :param format: Output format for the resized images.
     :param verbose: Verbosity level for output.
     :return: None
@@ -144,10 +171,10 @@ def worker(input_queue : Queue, output_queue : Queue, size : int, resize_mode : 
 
         # Resize the image and put the success status in the output queue
         input_path, output_path = item
-        success : bool = resize_image(input_path, output_path, size, resize_mode, format, verbose)
+        success : bool = resize_image(input_path, output_path, size, resize_mode, normal_image, mirror_image, format, verbose)
         output_queue.put(success)
 
-def process_images(input_dir : str, output_dir : str, size : int, resize_mode : str, format : str, verbose : int, num_processes : int) -> None:
+def process_images(input_dir : str, output_dir : str, size : int, resize_mode : str, normal_image : bool, mirror_image : bool, format : str, verbose : int, num_processes : int) -> None:
     """
     Process images in the input directory and store the resized images in the output directory.
     
@@ -155,6 +182,8 @@ def process_images(input_dir : str, output_dir : str, size : int, resize_mode : 
     :param output_dir: Output directory to store resized images.
     :param size: Size to resize the images.
     :param resize_mode: Resize mode for images.
+    :param normal_image: Flag to save normal image.
+    :param mirror_image: Flag to save mirrored image.
     :param format: Output format for the resized images.
     :param verbose: Verbosity level for output.
     :param num_processes: Number of processes to use for resizing.
@@ -168,7 +197,7 @@ def process_images(input_dir : str, output_dir : str, size : int, resize_mode : 
     # Start worker processes to resize images
     processes : list[Process] = []
     for _ in range(num_processes):
-        p : Process = Process(target = worker, args = (input_queue, output_queue, size, resize_mode, format, verbose))
+        p : Process = Process(target = worker, args = (input_queue, output_queue, size, resize_mode, normal_image, mirror_image, format, verbose))
         p.start()
         processes.append(p)
 
@@ -221,6 +250,8 @@ def main() -> None:
     parser.add_argument("-r", "--resize-mode", default = DEFAULT_RESIZE_MODE, help = f"Resize mode for images (thumbnail, cover or crop). Default is {DEFAULT_RESIZE_MODE}.")
     parser.add_argument("-f", "--format", default = DEFAULT_FORMAT, help = f"Output format for resized images (same, png or jpg). Default is {DEFAULT_FORMAT}.")
     parser.add_argument("-n", "--num-processes", type = int, default = cpu_count(), help = "Number of processes to use for resizing. Default is number of available CPU cores.")
+    parser.add_argument("-m", "--add-mirror", action = "store_true", help = "Add a mirrored version of each image.")
+    parser.add_argument("-M", "--mirror-only", action = "store_true", help = "Produce only a mirrored version of each image.")
     parser.add_argument("-v", "--verbose", action = "count", default = DEFAULT_VERBOSITY, help = "Verbose output.")
     args : Namespace = parser.parse_args()
 
@@ -237,8 +268,27 @@ def main() -> None:
         print(f"Invalid size {args.size}")
         sys.exit(1)
 
+    if args.num_processes <= 0:
+        print(f"Invalid number of processes {args.num_processes}")
+        sys.exit(1)
+
+    if args.add_mirror and args.mirror_only:
+        print("Options --add-mirror and --mirror-only are mutually exclusive")
+        sys.exit(1)
+
+    normal_image : bool = True
+    mirror_image : bool = False
+
+    if args.add_mirror:
+        normal_image = True
+        mirror_image = True
+
+    if args.mirror_only:
+        mirror_image = True
+        normal_image = False
+
     # Start processing images
-    process_images(args.input, args.output, args.size, args.resize_mode, args.format, args.verbose, args.num_processes)
+    process_images(args.input, args.output, args.size, args.resize_mode, normal_image, mirror_image, args.format, args.verbose, args.num_processes)
 
 if __name__ == "__main__":
     main()
