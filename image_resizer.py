@@ -30,6 +30,14 @@ def resize_image(input_path : str, output_path : str, size : int, resize_mode : 
     """
     Resize an image to the specified size and save it to the output path.
 
+    This function resizes an image to the specified size and saves it to the output path.
+    Optionally, it can also save a mirrored version of the image.
+
+    This function supports several resize modes: thumbnail, cover and crop.
+    - thumbnail: Put the image into a square box of size x size with the original aspect ratio.
+    - cover: Resize the image to cover the whole box of size x size with the original aspect ratio.
+    - crop: Crop the image to a square box of size x size.
+
     :param input_path: Path to the input image.
     :param output_path: Path to save the resized image.
     :param size: Size to resize the image.
@@ -40,14 +48,16 @@ def resize_image(input_path : str, output_path : str, size : int, resize_mode : 
     :return: Tuple of boolean success value, number of generated files and a message string.
     """
 
+    all_output_list : list[str] = []
+
     try:
         # Open the image
-        image = Image.open(input_path)
+        image : Image.Image = Image.open(input_path)
 
         # Check if the image has exif metadata and contains orientation information
         if hasattr(image, "_getexif") and image._getexif():
-            exif = dict(image._getexif().items())
-            orientation = exif.get(0x0112, 1)  # Default orientation is 1 (normal)
+            exif : dict[int, Any] = dict(image._getexif().items())
+            orientation : int = exif.get(0x0112, 1)  # Default orientation is 1 (normal)
 
             # Rotate the image according to its orientation
             if orientation == 3:
@@ -96,12 +106,10 @@ def resize_image(input_path : str, output_path : str, size : int, resize_mode : 
             result_width = size
 
         else:
-            return (False, 0, f"Unsupported resize mode: {resize_mode}")
+            return (False, len(all_output_list), f"Unsupported resize mode: {resize_mode}")
 
         # Resize the image
         image = image.resize((result_width, result_height), resample = Image.BICUBIC)
-
-        all_output_list : list[str] = []
 
         if normal_image:
             # Save the image with the correct format
@@ -114,7 +122,7 @@ def resize_image(input_path : str, output_path : str, size : int, resize_mode : 
             elif format.lower() == "same":
                 image.save(output_path)
             else:
-                return (False, 0, f"Unsupported output format: {format}")
+                return (False, len(all_output_list), f"Unsupported output format: {format}")
             all_output_list.append(output_path)
 
         if mirror_image:
@@ -130,14 +138,14 @@ def resize_image(input_path : str, output_path : str, size : int, resize_mode : 
             elif format.lower() == "same":
                 mirrored_image.save(mirrored_output_path)
             else:
-                return (False, 0, f"Unsupported output format: {format}")
+                return (False, len(all_output_list), f"Unsupported output format: {format}")
             all_output_list.append(mirrored_output_path)
 
-        all_output_path : str = ", ".join(all_output_list)
+        all_output_path : str = ",".join(all_output_list)
 
         return (True, len(all_output_list), f"Resized: {input_path} ({original_width}x{original_height}) to {all_output_path} ({result_width}x{result_height})")
     except Exception as e:
-        return (False, 0, f"Error resizing {input_path}: {e}")
+        return (False, len(all_output_list), f"Error resizing {input_path}: {e}")
 
 def worker(input_queue : Queue, output_queue : Queue, size : int, resize_mode : str, normal_image : bool, mirror_image : bool, format : str) -> None:
     """
@@ -155,11 +163,13 @@ def worker(input_queue : Queue, output_queue : Queue, size : int, resize_mode : 
 
     while True:
         # Get an item from the input queue
-        item = input_queue.get()
+        item : tuple[str, str] = input_queue.get()
         if item is None: # Termination signal is found
             break
 
         # Resize the image and put the result status in the output queue
+        input_path : str
+        output_path : str
         input_path, output_path = item
         result : tuple[bool, int, str] = resize_image(input_path, output_path, size, resize_mode, normal_image, mirror_image, format)
         output_queue.put(result)
@@ -194,12 +204,15 @@ def process_images(input_dir : str, output_dir : str, size : int, resize_mode : 
     total_files : int = 0
 
     # Walk through the input directory and add images to the input queue
+    root : str
+    files : list[str]
     for root, _, files in os.walk(input_dir):
+        filename : str
         for filename in files:
             if filename.lower().endswith(('.png', '.jpg', '.jpeg')):
-                input_path = os.path.join(root, filename)
-                relative_path = os.path.relpath(input_path, input_dir)
-                output_path = os.path.join(output_dir, relative_path)
+                input_path : str = os.path.join(root, filename)
+                relative_path : str = os.path.relpath(input_path, input_dir)
+                output_path : str = os.path.join(output_dir, relative_path)
                 os.makedirs(os.path.dirname(output_path), exist_ok = True)
                 input_queue.put((input_path, output_path))
                 total_files += 1
@@ -215,17 +228,27 @@ def process_images(input_dir : str, output_dir : str, size : int, resize_mode : 
 
     # Wait for all worker processes to finish and collect the results
     while processed_files < total_files:
+        # Read the result from the output queue
         result : tuple[bool, int, str] = output_queue.get()
+        if result is None:
+            break
+
+        success : bool
+        generated : int
+        message : str
+        success, generated, message = result
+
+        # Update counters based on the result
         processed_files += 1
-        if result[0]:
+        if success:
             successes += 1
         else:
             errors += 1
-        generated_files += result[1]
+        generated_files += generated
 
         # Print verbose output to show the result of the image processing
         if verbose >= VERBOSITY_HIGH:
-            print(result[2])
+            print(message)
 
         # Print verbose output to show general progress
         if verbose >= VERBOSITY_LOW:
@@ -251,7 +274,7 @@ def main() -> None:
     """
 
     # Parse command line arguments
-    parser = ArgumentParser(description = "Resize images in a directory tree.")
+    parser : ArgumentParser = ArgumentParser(description = "Resize images in a directory tree.")
     parser.add_argument("-i", "--input", required = True, help = "Input directory containing images.")
     parser.add_argument("-o", "--output", required = True, help = "Output directory to store resized images.")
     parser.add_argument("-s", "--size", type = int, default = DEFAULT_SIZE, help = f"Size to resize the images. Default is {DEFAULT_SIZE}.")
@@ -281,7 +304,7 @@ def main() -> None:
         sys.exit(1)
 
     if args.add_mirror and args.mirror_only:
-        print("Options --add-mirror and --mirror-only are mutually exclusive")
+        print("Options -m/--add-mirror and -M/--mirror-only are mutually exclusive")
         sys.exit(1)
 
     normal_image : bool = True
