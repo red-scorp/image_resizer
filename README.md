@@ -9,7 +9,7 @@ The main usage of the script is to resize bunch of images from input directory t
 For example, this command will resize all images to fit into `1024`x`1024` px from the input directory and save them in the output directory with the same directory structure:
 
 ```bash
-python3 image_resizer.py -i /path/to/input_dir --o /path/to/output_dir -s 1024
+python3 image_resizer.py -i /path/to/input_dir -o /path/to/output_dir -s 1024
 ```
 
 The script will create the output directory if it does not exist.
