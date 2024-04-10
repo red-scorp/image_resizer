@@ -61,3 +61,11 @@ Following options are available to customize the resizing process:
 | `-m`, `--add-mirror` | **Add a mirrored version of each image.** The script will add a mirrored version of each image to the output directory. The mirrored file will be saved with following name format `<original_image>_mirror.<ext>`. The idea of adding mirrored versions of the images to your training dataset is to remove biases from your input images. |
 | `-M`, `--mirror-only` | **Produce only a mirrored version of each image.** The script will produce only a mirrored version of each image to the output directory. This option can be used to add mirrored images to existing output directory tree. |
 | `-v`, `--verbose` | **Verbose output.** The script will print more information about the processing. Adding more `-v` options will increase information you will see during directory resizing. |
+
+## How You Can Contribute
+
+We welcome your contributions to the ag-panel project! Whether it's code, resources, or financial support, your help is invaluable. Feel free to reach out directly via email at andriy.golovnya@gmail.com or through my [GitHub profile](https://github.com/red-scorp).
+
+If you'd like to make a financial contribution to support the project's development, you can donate via [PayPal](http://paypal.me/redscorp) or [Ko-Fi](http://ko-fi.com/redscorp). Your generosity is greatly appreciated.
+
+Thank you in advance for your support, and let's make the ag-panel project even better together!
