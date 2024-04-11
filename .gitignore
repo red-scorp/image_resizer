@@ -3,4 +3,6 @@
 **/*.png
 **/*.gif
 **/*.tiff
+**/*.tif
+**/*.bmp
 **/*.webp

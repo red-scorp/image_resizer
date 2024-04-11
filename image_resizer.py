@@ -50,6 +50,9 @@ def store_image(image : Image.Image, output_path: str, format : str) -> tuple[bo
     elif format.lower() == "tiff":
         output_path = os.path.splitext(output_path)[0] + ".tiff"
         image.save(output_path, format = "TIFF")
+    elif format.lower() == "bmp":
+        output_path = os.path.splitext(output_path)[0] + ".bmp"
+        image.save(output_path, format = "BMP")
     elif format.lower() == "webp":
         output_path = os.path.splitext(output_path)[0] + ".webp"
         image.save(output_path, format = "WEBP")
@@ -152,7 +155,6 @@ def resize_image(input_path : str, output_path : str, size : int, resize_mode : 
                 all_output_list.append(output)
             else:
                 return (False, len(all_output_list), output)
-            
 
         if mirror_image:
             # Mirror the image and save it with the correct format
@@ -232,7 +234,7 @@ def process_images(input_dir : str, output_dir : str, size : int, resize_mode : 
     for root, _, files in os.walk(input_dir):
         filename : str
         for filename in files:
-            if filename.lower().endswith(('.png', '.jpg', '.jpeg', "gif", "tiff", "tif", "webp")):
+            if filename.lower().endswith(('.png', '.jpg', '.jpeg', "gif", "tiff", "tif", "bmp", "webp")):
                 input_path : str = os.path.join(root, filename)
                 relative_path : str = os.path.relpath(input_path, input_dir)
                 output_path : str = os.path.join(output_dir, relative_path)
@@ -302,7 +304,7 @@ def main() -> None:
     parser.add_argument("-o", "--output", required = True, help = "Output directory to store resized images.")
     parser.add_argument("-s", "--size", type = int, default = DEFAULT_SIZE, help = f"Size to resize the images. Default is {DEFAULT_SIZE}.")
     parser.add_argument("-r", "--resize-mode", default = DEFAULT_RESIZE_MODE, help = f"Resize mode for images (thumbnail, cover or crop). Default is {DEFAULT_RESIZE_MODE}.")
-    parser.add_argument("-f", "--format", default = DEFAULT_FORMAT, help = f"Output format for resized images (same, png, jpg, gif, tiff and webp). Default is {DEFAULT_FORMAT}.")
+    parser.add_argument("-f", "--format", default = DEFAULT_FORMAT, help = f"Output format for resized images (same, png, jpg, gif, tiff, bmp and webp). Default is {DEFAULT_FORMAT}.")
     parser.add_argument("-n", "--num-processes", type = int, default = cpu_count(), help = "Number of processes to use for resizing. Default is number of available CPU cores.")
     parser.add_argument("-m", "--add-mirror", action = "store_true", help = "Add a mirrored version of each image.")
     parser.add_argument("-M", "--mirror-only", action = "store_true", help = "Produce only a mirrored version of each image.")
@@ -310,7 +312,7 @@ def main() -> None:
     args : Namespace = parser.parse_args()
 
     # Check some input arguments for validity
-    if args.format.lower() not in ["same", "png", "jpg", "gif", "tiff", "webp"]:
+    if args.format.lower() not in ["same", "png", "jpg", "gif", "tiff", "bmp", "webp"]:
         print(f"Unsupported output format {args.format}")
         sys.exit(1)
 
