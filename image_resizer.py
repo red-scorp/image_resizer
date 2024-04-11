@@ -26,6 +26,40 @@ DEFAULT_VERBOSITY : int = VERBOSITY_NONE # Default verbosity level for output.
 DEFAULT_FORMAT : str = "same" # Default output format for resized images.
 DEFAULT_RESIZE_MODE : str = "thumbnail" # Default resize mode for images.
 
+def store_image(image : Image.Image, output_path: str, format : str) -> tuple[bool, str]:
+    """
+    Store an image to the output path with the specified format.
+
+    This function stores an image to the output path with the specified format.
+
+    :param image: Image to store.
+    :param output_path: Path to save the image.
+    :param format: Output format for the image.
+    :return: Tuple of boolean success value and the output path of the stored image.
+    """
+
+    if format.lower() == "png":
+        output_path = os.path.splitext(output_path)[0] + ".png"
+        image.save(output_path, format = "PNG")
+    elif format.lower() == "jpg":
+        output_path = os.path.splitext(output_path)[0] + ".jpg"
+        image.save(output_path, format = "JPEG")
+    elif format.lower() == "gif":
+        output_path = os.path.splitext(output_path)[0] + ".gif"
+        image.save(output_path, format = "GIF")
+    elif format.lower() == "tiff":
+        output_path = os.path.splitext(output_path)[0] + ".tiff"
+        image.save(output_path, format = "TIFF")
+    elif format.lower() == "webp":
+        output_path = os.path.splitext(output_path)[0] + ".webp"
+        image.save(output_path, format = "WEBP")
+    elif format.lower() == "same":
+        image.save(output_path)
+    else:
+        return False, f"Unsupported output format: {format}"
+
+    return True, output_path
+
 def resize_image(input_path : str, output_path : str, size : int, resize_mode : str, normal_image : bool, mirror_image : bool, format : str) -> tuple[bool, int, str]:
     """
     Resize an image to the specified size and save it to the output path.
@@ -113,33 +147,22 @@ def resize_image(input_path : str, output_path : str, size : int, resize_mode : 
 
         if normal_image:
             # Save the image with the correct format
-            if format.lower() == "png":
-                output_path = os.path.splitext(output_path)[0] + ".png"
-                image.save(output_path, format = "PNG")
-            elif format.lower() == "jpg":
-                output_path = os.path.splitext(output_path)[0] + ".jpg"
-                image.save(output_path, format = "JPEG")
-            elif format.lower() == "same":
-                image.save(output_path)
+            success, output = store_image(image, output_path, format)
+            if success:
+                all_output_list.append(output)
             else:
-                return (False, len(all_output_list), f"Unsupported output format: {format}")
-            all_output_list.append(output_path)
+                return (False, len(all_output_list), output)
+            
 
         if mirror_image:
             # Mirror the image and save it with the correct format
-            mirrored_image = image.transpose(Image.FLIP_LEFT_RIGHT)
+            mirrored_image : Image.Image = image.transpose(Image.FLIP_LEFT_RIGHT)
             mirrored_output_path = os.path.splitext(output_path)[0] + "_mirror" + os.path.splitext(output_path)[1]
-            if format.lower() == "png":
-                mirrored_output_path = os.path.splitext(mirrored_output_path)[0] + ".png"
-                mirrored_image.save(mirrored_output_path, format = "PNG")
-            elif format.lower() == "jpg":
-                mirrored_output_path = os.path.splitext(mirrored_output_path)[0] + ".jpg"
-                mirrored_image.save(mirrored_output_path, format = "JPEG")
-            elif format.lower() == "same":
-                mirrored_image.save(mirrored_output_path)
+            success, output = store_image(mirrored_image, mirrored_output_path, format)
+            if success:
+                all_output_list.append(output)
             else:
-                return (False, len(all_output_list), f"Unsupported output format: {format}")
-            all_output_list.append(mirrored_output_path)
+                return (False, len(all_output_list), output)
 
         all_output_path : str = ",".join(all_output_list)
 
@@ -209,7 +232,7 @@ def process_images(input_dir : str, output_dir : str, size : int, resize_mode : 
     for root, _, files in os.walk(input_dir):
         filename : str
         for filename in files:
-            if filename.lower().endswith(('.png', '.jpg', '.jpeg')):
+            if filename.lower().endswith(('.png', '.jpg', '.jpeg', "gif", "tiff", "tif", "webp")):
                 input_path : str = os.path.join(root, filename)
                 relative_path : str = os.path.relpath(input_path, input_dir)
                 output_path : str = os.path.join(output_dir, relative_path)
@@ -279,7 +302,7 @@ def main() -> None:
     parser.add_argument("-o", "--output", required = True, help = "Output directory to store resized images.")
     parser.add_argument("-s", "--size", type = int, default = DEFAULT_SIZE, help = f"Size to resize the images. Default is {DEFAULT_SIZE}.")
     parser.add_argument("-r", "--resize-mode", default = DEFAULT_RESIZE_MODE, help = f"Resize mode for images (thumbnail, cover or crop). Default is {DEFAULT_RESIZE_MODE}.")
-    parser.add_argument("-f", "--format", default = DEFAULT_FORMAT, help = f"Output format for resized images (same, png or jpg). Default is {DEFAULT_FORMAT}.")
+    parser.add_argument("-f", "--format", default = DEFAULT_FORMAT, help = f"Output format for resized images (same, png, jpg, gif, tiff and webp). Default is {DEFAULT_FORMAT}.")
     parser.add_argument("-n", "--num-processes", type = int, default = cpu_count(), help = "Number of processes to use for resizing. Default is number of available CPU cores.")
     parser.add_argument("-m", "--add-mirror", action = "store_true", help = "Add a mirrored version of each image.")
     parser.add_argument("-M", "--mirror-only", action = "store_true", help = "Produce only a mirrored version of each image.")
@@ -287,7 +310,7 @@ def main() -> None:
     args : Namespace = parser.parse_args()
 
     # Check some input arguments for validity
-    if args.format.lower() not in ["same", "png", "jpg"]:
+    if args.format.lower() not in ["same", "png", "jpg", "gif", "tiff", "webp"]:
         print(f"Unsupported output format {args.format}")
         sys.exit(1)
 
