@@ -16,6 +16,7 @@ from argparse import ArgumentParser, Namespace
 from PIL import Image
 from multiprocessing import Process, Queue, cpu_count
 from typing import Any
+import hashlib
 
 VERBOSITY_NONE : int = 0 # No verbose output.
 VERBOSITY_LOW : int = 1 # Low verbose output.
@@ -25,8 +26,9 @@ DEFAULT_SIZE : int = 512 # Default size to resize the images.
 DEFAULT_VERBOSITY : int = VERBOSITY_NONE # Default verbosity level for output.
 DEFAULT_FORMAT : str = "same" # Default output format for resized images.
 DEFAULT_RESIZE_MODE : str = "thumbnail" # Default resize mode for images.
+DEFAULT_RENAME : str = "none" # Default rename pattern for resized images.
 
-def store_image(image : Image.Image, output_path: str, format : str) -> tuple[bool, str]:
+def store_image(image : Image.Image, output_path: str, format : str, rename : str, file_counter : int) -> tuple[bool, str]:
     """
     Store an image to the output path with the specified format.
 
@@ -35,6 +37,8 @@ def store_image(image : Image.Image, output_path: str, format : str) -> tuple[bo
     :param image: Image to store.
     :param output_path: Path to save the image.
     :param format: Output format for the image.
+    :param rename: Rename pattern for the image.
+    :param file_counter: Counter for the generated files.
     :return: Tuple of boolean success value and the output path of the stored image.
     """
 
@@ -61,9 +65,33 @@ def store_image(image : Image.Image, output_path: str, format : str) -> tuple[bo
     else:
         return False, f"Unsupported output format: {format}"
 
+    if rename.lower() == "none":
+        return True, output_path
+
+    new_output_path : str
+
+    if rename.lower() == "counter":
+        new_output_path = os.path.dirname(output_path) + "/" + str(file_counter) + os.path.splitext(output_path)[1]
+        os.remove(new_output_path) if os.path.exists(new_output_path) else None
+        os.rename(output_path, new_output_path)
+        return True, new_output_path
+
+    if rename.lower() == "0-counter":
+        new_output_path = os.path.dirname(output_path) + "/" + f"{file_counter:08d}" + os.path.splitext(output_path)[1]
+        os.remove(new_output_path) if os.path.exists(new_output_path) else None
+        os.rename(output_path, new_output_path)
+        return True, new_output_path
+
+    if rename.lower() == "md5":
+        file_content = open(output_path, "rb").read()
+        new_output_path = os.path.dirname(output_path) + "/" + hashlib.md5(file_content).hexdigest() + os.path.splitext(output_path)[1]
+        os.remove(new_output_path) if os.path.exists(new_output_path) else None
+        os.rename(output_path, new_output_path)
+        return True, new_output_path
+
     return True, output_path
 
-def resize_image(input_path : str, output_path : str, size : int, resize_mode : str, normal_image : bool, mirror_image : bool, format : str) -> tuple[bool, int, str]:
+def resize_image(input_path : str, output_path : str, size : int, resize_mode : str, normal_image : bool, mirror_image : bool, format : str, rename : str, file_counter : int) -> tuple[bool, int, str]:
     """
     Resize an image to the specified size and save it to the output path.
 
@@ -82,6 +110,8 @@ def resize_image(input_path : str, output_path : str, size : int, resize_mode : 
     :param normal_image: Flag to save normal image.
     :param mirror_image: Flag to save mirrored image.
     :param format: Output format for the resized image.
+    :param rename: Rename pattern for the resized image.
+    :param file_counter: Counter for the generated files.
     :return: Tuple of boolean success value, number of generated files and a message string.
     """
 
@@ -150,7 +180,7 @@ def resize_image(input_path : str, output_path : str, size : int, resize_mode : 
 
         if normal_image:
             # Save the image with the correct format
-            success, output = store_image(image, output_path, format)
+            success, output = store_image(image, output_path, format, rename, file_counter)
             if success:
                 all_output_list.append(output)
             else:
@@ -160,7 +190,7 @@ def resize_image(input_path : str, output_path : str, size : int, resize_mode : 
             # Mirror the image and save it with the correct format
             mirrored_image : Image.Image = image.transpose(Image.FLIP_LEFT_RIGHT)
             mirrored_output_path = os.path.splitext(output_path)[0] + "_mirror" + os.path.splitext(output_path)[1]
-            success, output = store_image(mirrored_image, mirrored_output_path, format)
+            success, output = store_image(mirrored_image, mirrored_output_path, format, rename, file_counter + 1)
             if success:
                 all_output_list.append(output)
             else:
@@ -172,7 +202,7 @@ def resize_image(input_path : str, output_path : str, size : int, resize_mode : 
     except Exception as e:
         return (False, len(all_output_list), f"Error resizing {input_path}: {e}")
 
-def worker(input_queue : Queue, output_queue : Queue, size : int, resize_mode : str, normal_image : bool, mirror_image : bool, format : str) -> None:
+def worker(input_queue : Queue, output_queue : Queue, size : int, resize_mode : str, normal_image : bool, mirror_image : bool, format : str, rename : str) -> None:
     """
     Worker function to resize images from the input queue and store the results in the output queue.
     
@@ -183,23 +213,25 @@ def worker(input_queue : Queue, output_queue : Queue, size : int, resize_mode : 
     :param normal_image: Flag to save normal image.
     :param mirror_image: Flag to save mirrored image.
     :param format: Output format for the resized images.
+    :param rename: Rename pattern for the resized images.
     :return: None
     """
 
     while True:
         # Get an item from the input queue
-        item : tuple[str, str] = input_queue.get()
+        item : tuple[str, str, int] = input_queue.get()
         if item is None: # Termination signal is found
             break
 
         # Resize the image and put the result status in the output queue
         input_path : str
         output_path : str
-        input_path, output_path = item
-        result : tuple[bool, int, str] = resize_image(input_path, output_path, size, resize_mode, normal_image, mirror_image, format)
+        file_counter : int
+        input_path, output_path, file_counter = item
+        result : tuple[bool, int, str] = resize_image(input_path, output_path, size, resize_mode, normal_image, mirror_image, format, rename, file_counter)
         output_queue.put(result)
 
-def process_images(input_dir : str, output_dir : str, size : int, resize_mode : str, normal_image : bool, mirror_image : bool, format : str, verbose : int, num_processes : int) -> None:
+def process_images(input_dir : str, output_dir : str, size : int, resize_mode : str, normal_image : bool, mirror_image : bool, format : str, rename : str, verbose : int, num_processes : int) -> None:
     """
     Process images in the input directory and store the resized images in the output directory.
     
@@ -210,6 +242,7 @@ def process_images(input_dir : str, output_dir : str, size : int, resize_mode : 
     :param normal_image: Flag to save normal image.
     :param mirror_image: Flag to save mirrored image.
     :param format: Output format for the resized images.
+    :param rename: Rename pattern for the resized images.
     :param verbose: Verbosity level for output.
     :param num_processes: Number of processes to use for resizing.
     :return: None
@@ -222,11 +255,12 @@ def process_images(input_dir : str, output_dir : str, size : int, resize_mode : 
     # Start worker processes to resize images
     processes : list[Process] = []
     for _ in range(num_processes):
-        p : Process = Process(target = worker, args = (input_queue, output_queue, size, resize_mode, normal_image, mirror_image, format))
+        p : Process = Process(target = worker, args = (input_queue, output_queue, size, resize_mode, normal_image, mirror_image, format, rename))
         p.start()
         processes.append(p)
 
     total_files : int = 0
+    file_counter : int = 0
 
     # Walk through the input directory and add images to the input queue
     root : str
@@ -239,8 +273,9 @@ def process_images(input_dir : str, output_dir : str, size : int, resize_mode : 
                 relative_path : str = os.path.relpath(input_path, input_dir)
                 output_path : str = os.path.join(output_dir, relative_path)
                 os.makedirs(os.path.dirname(output_path), exist_ok = True)
-                input_queue.put((input_path, output_path))
+                input_queue.put((input_path, output_path, file_counter))
                 total_files += 1
+                file_counter += 2 if mirror_image and normal_image else 1
 
     # Add termination signals to the input queue
     for _ in range(num_processes):
@@ -308,6 +343,7 @@ def main() -> None:
     parser.add_argument("-n", "--num-processes", type = int, default = cpu_count(), help = "Number of processes to use for resizing. Default is number of available CPU cores.")
     parser.add_argument("-m", "--add-mirror", action = "store_true", help = "Add a mirrored version of each image.")
     parser.add_argument("-M", "--mirror-only", action = "store_true", help = "Produce only a mirrored version of each image.")
+    parser.add_argument("-R", "--rename", default = "none", help = "Rename the resized images using a pattern (none, counter, 0-counter, md5).")
     parser.add_argument("-v", "--verbose", action = "count", default = DEFAULT_VERBOSITY, help = "Verbose output.")
     args : Namespace = parser.parse_args()
 
@@ -318,6 +354,10 @@ def main() -> None:
 
     if args.resize_mode.lower() not in ["thumbnail", "cover", "crop"]:
         print(f"Unsupported resize mode {args.resize_mode}")
+        sys.exit(1)
+
+    if args.rename.lower() not in ["none", "counter", "0-counter", "md5"]:
+        print(f"Unsupported rename pattern {args.rename}")
         sys.exit(1)
 
     if args.size <= 0:
@@ -344,7 +384,7 @@ def main() -> None:
         normal_image = False
 
     # Start processing images
-    process_images(args.input, args.output, args.size, args.resize_mode, normal_image, mirror_image, args.format, args.verbose, args.num_processes)
+    process_images(args.input, args.output, args.size, args.resize_mode, normal_image, mirror_image, args.format, args.rename, args.verbose, args.num_processes)
 
 if __name__ == "__main__":
     main()

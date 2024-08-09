@@ -25,7 +25,7 @@ python3 image_resizer.py -h
 This will print the following help message:
 
 ```
-usage: image_resizer.py [-h] -i INPUT -o OUTPUT [-s SIZE] [-r RESIZE_MODE] [-f FORMAT] [-n NUM_PROCESSES] [-m] [-M] [-v]
+usage: image_resizer.py [-h] -i INPUT -o OUTPUT [-s SIZE] [-r RESIZE_MODE] [-f FORMAT] [-n NUM_PROCESSES] [-m] [-M] [-R RENAME] [-v]
 
 Resize images in a directory tree.
 
@@ -44,6 +44,8 @@ options:
                         Number of processes to use for resizing. Default is number of available CPU cores.
   -m, --add-mirror      Add a mirrored version of each image.
   -M, --mirror-only     Produce only a mirrored version of each image.
+  -R RENAME, --rename RENAME
+                        Rename the resized images using a pattern (none, counter, 0-counter, md5).
   -v, --verbose         Verbose output.
 ```
 
@@ -60,6 +62,7 @@ Following options are available to customize the resizing process:
 | `-n`, `--num-processes` | **Number of processes to use for resizing. Default is number of available CPU cores.** The script will use multiprocessing to speed up the resizing process. |
 | `-m`, `--add-mirror` | **Add a mirrored version of each image.** The script will add a mirrored version of each image to the output directory. The mirrored file will be saved with following name format `<original_image>_mirror.<ext>`. The idea of adding mirrored versions of the images to your training dataset is to remove biases from your input images. |
 | `-M`, `--mirror-only` | **Produce only a mirrored version of each image.** The script will produce only a mirrored version of each image to the output directory. This option can be used to add mirrored images to existing output directory tree. |
+| `-R`, `--rename` | **Rename the resized images using a pattern (`none`, `counter`, `0-counter`, `md5`).** The script can rename the resized images using a pattern. <ul><li> `none` will keep the original file names. </li><li> `counter` will rename the files using a counter. </li><li> `0-counter` will rename the files using a counter with leading zeros. </li><li> `md5` will rename the files using MD5 hash of the resulting file. </li></ul> |
 | `-v`, `--verbose` | **Verbose output.** The script will print more information about the processing. Adding more `-v` options will increase information you will see during directory resizing. |
 
 ## How You Can Contribute
