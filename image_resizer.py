@@ -172,11 +172,18 @@ def resize_image(input_path : str, output_path : str, size : int, resize_mode : 
             result_height = size
             result_width = size
 
+        elif resize_mode.lower() == "none":
+            # We don't want to resize the image at all
+            result_width = original_width
+            result_height = original_height
+
         else:
             return (False, len(all_output_list), f"Unsupported resize mode: {resize_mode}")
 
-        # Resize the image
-        image = image.resize((result_width, result_height), resample = Image.BICUBIC)
+        # Check if the image is already in the desired size
+        if result_width == original_width and result_height == original_height:
+            # Resize the image
+            image = image.resize((result_width, result_height), resample = Image.BICUBIC)
 
         if normal_image:
             # Save the image with the correct format
@@ -338,12 +345,12 @@ def main() -> None:
     parser.add_argument("-i", "--input", required = True, help = "Input directory containing images.")
     parser.add_argument("-o", "--output", required = True, help = "Output directory to store resized images.")
     parser.add_argument("-s", "--size", type = int, default = DEFAULT_SIZE, help = f"Size to resize the images. Default is {DEFAULT_SIZE}.")
-    parser.add_argument("-r", "--resize-mode", default = DEFAULT_RESIZE_MODE, help = f"Resize mode for images (thumbnail, cover or crop). Default is {DEFAULT_RESIZE_MODE}.")
+    parser.add_argument("-r", "--resize-mode", default = DEFAULT_RESIZE_MODE, help = f"Resize mode for images (none, thumbnail, cover or crop). Default is {DEFAULT_RESIZE_MODE}.")
     parser.add_argument("-f", "--format", default = DEFAULT_FORMAT, help = f"Output format for resized images (same, png, jpg, gif, tiff, bmp and webp). Default is {DEFAULT_FORMAT}.")
     parser.add_argument("-n", "--num-processes", type = int, default = cpu_count(), help = "Number of processes to use for resizing. Default is number of available CPU cores.")
     parser.add_argument("-m", "--add-mirror", action = "store_true", help = "Add a mirrored version of each image.")
     parser.add_argument("-M", "--mirror-only", action = "store_true", help = "Produce only a mirrored version of each image.")
-    parser.add_argument("-R", "--rename", default = "none", help = "Rename the resized images using a pattern (none, counter, 0-counter, md5).")
+    parser.add_argument("-R", "--rename", default = "none", help = f"Rename the resized images using a pattern (none, counter, 0-counter, md5). Default is {DEFAULT_RENAME}.")
     parser.add_argument("-v", "--verbose", action = "count", default = DEFAULT_VERBOSITY, help = "Verbose output.")
     args : Namespace = parser.parse_args()
 
@@ -352,7 +359,7 @@ def main() -> None:
         print(f"Unsupported output format {args.format}")
         sys.exit(1)
 
-    if args.resize_mode.lower() not in ["thumbnail", "cover", "crop"]:
+    if args.resize_mode.lower() not in ["none", "thumbnail", "cover", "crop"]:
         print(f"Unsupported resize mode {args.resize_mode}")
         sys.exit(1)
 

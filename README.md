@@ -25,7 +25,8 @@ python3 image_resizer.py -h
 This will print the following help message:
 
 ```
-usage: image_resizer.py [-h] -i INPUT -o OUTPUT [-s SIZE] [-r RESIZE_MODE] [-f FORMAT] [-n NUM_PROCESSES] [-m] [-M] [-R RENAME] [-v]
+usage: image_resizer.py [-h] -i INPUT -o OUTPUT [-s SIZE] [-r RESIZE_MODE] [-f FORMAT] [-n NUM_PROCESSES] [-m] [-M]
+                        [-R RENAME] [-v]
 
 Resize images in a directory tree.
 
@@ -37,15 +38,15 @@ options:
                         Output directory to store resized images.
   -s SIZE, --size SIZE  Size to resize the images. Default is 512.
   -r RESIZE_MODE, --resize-mode RESIZE_MODE
-                        Resize mode for images (thumbnail, cover or crop). Default is thumbnail.
+                        Resize mode for images (none, thumbnail, cover or crop). Default is thumbnail.
   -f FORMAT, --format FORMAT
-                        Output format for resized images (same, png, jpg, gif, tiff, bmp and webp). Default is same.
+                        Output format for resized images (same, png, jpg, gif, tiff, bmp and webp). Default is same.       
   -n NUM_PROCESSES, --num-processes NUM_PROCESSES
                         Number of processes to use for resizing. Default is number of available CPU cores.
   -m, --add-mirror      Add a mirrored version of each image.
   -M, --mirror-only     Produce only a mirrored version of each image.
   -R RENAME, --rename RENAME
-                        Rename the resized images using a pattern (none, counter, 0-counter, md5).
+                        Rename the resized images using a pattern (none, counter, 0-counter, md5). Default is none.        
   -v, --verbose         Verbose output.
 ```
 
@@ -57,12 +58,12 @@ Following options are available to customize the resizing process:
 | `-i`, `--input` | **Input directory containing images.** The script finds all JPEG and PNG images for processing. |
 | `-o`, `--output` | **Output directory to store resized images.** The script will keep the same directory structure in the output directory as in the input directory. |
 | `-s`, `--size` | **Size to resize the images. Default is `512`.** The default value is chosen to be use with stable diffusion 1.5. For stable diffusion XL use size of `1024`. |
-| `-r`, `--resize-mode` | **Resize mode for images (`thumbnail`, `cover` or `crop`). Default is thumbnail.** The resize modes are covering different use cases. <ul><li> `thumbnail` wants to resize original image to fit in `size`x`size` square, this means the smaller side of the output image will be smaller then `size`. </li><li> `cover` wants to cover `size`x`size` square, the bigger side of the image will be bigger then the `size`. </li><li> `crop` will act as `cover` and crop the output image to `size`x`size` square. </li></ul> |
-| `-f`, `--format` | **Output format for resized images (`same`, `png`, `jpg`, `gif`, `tiff`, `bmp` and `webp`). Default is same.** The script can additionally produce output in specific image format. <ul><li> `same` will save output files in original image format. </li><li> `png` will convert images to PNG format. </li><li> `jpg` will generate JPEG output files. </li><li> `gif` will generate GIF output files. </li><li> `tiff` will generate TIFF output files. </li><li> `bmp` will generate BMP output files. </li><li> `webp` will generate WEBP output files. </li></ul> |
+| `-r`, `--resize-mode` | **Resize mode for images (`none`, `thumbnail`, `cover` or `crop`). Default is `thumbnail`.** The resize modes are covering different use cases. <ul><li>`none` will ignore any `size` values and leave the image as it is.</li><li> `thumbnail` wants to resize original image to fit in `size`x`size` square, this means the smaller side of the output image will be smaller then `size`. </li><li> `cover` wants to cover `size`x`size` square, the bigger side of the image will be bigger then the `size`. </li><li> `crop` will act as `cover` and crop the output image to `size`x`size` square. </li></ul> |
+| `-f`, `--format` | **Output format for resized images (`same`, `png`, `jpg`, `gif`, `tiff`, `bmp` and `webp`). Default is `same`.** The script can additionally produce output in specific image format. <ul><li> `same` will save output files in original image format. </li><li> `png` will convert images to PNG format. </li><li> `jpg` will generate JPEG output files. </li><li> `gif` will generate GIF output files. </li><li> `tiff` will generate TIFF output files. </li><li> `bmp` will generate BMP output files. </li><li> `webp` will generate WEBP output files. </li></ul> |
 | `-n`, `--num-processes` | **Number of processes to use for resizing. Default is number of available CPU cores.** The script will use multiprocessing to speed up the resizing process. |
 | `-m`, `--add-mirror` | **Add a mirrored version of each image.** The script will add a mirrored version of each image to the output directory. The mirrored file will be saved with following name format `<original_image>_mirror.<ext>`. The idea of adding mirrored versions of the images to your training dataset is to remove biases from your input images. |
 | `-M`, `--mirror-only` | **Produce only a mirrored version of each image.** The script will produce only a mirrored version of each image to the output directory. This option can be used to add mirrored images to existing output directory tree. |
-| `-R`, `--rename` | **Rename the resized images using a pattern (`none`, `counter`, `0-counter`, `md5`).** The script can rename the resized images using a pattern. <ul><li> `none` will keep the original file names. </li><li> `counter` will rename the files using a counter. </li><li> `0-counter` will rename the files using a counter with leading zeros. </li><li> `md5` will rename the files using MD5 hash of the resulting file. </li></ul> |
+| `-R`, `--rename` | **Rename the resized images using a pattern (`none`, `counter`, `0-counter`, `md5`). Default is `none`.** The script can rename the resized images using a pattern. <ul><li> `none` will keep the original file names. </li><li> `counter` will rename the files using a counter. </li><li> `0-counter` will rename the files using a counter with leading zeros. </li><li> `md5` will rename the files using MD5 hash of the resulting file. </li></ul> |
 | `-v`, `--verbose` | **Verbose output.** The script will print more information about the processing. Adding more `-v` options will increase information you will see during directory resizing. |
 
 ## How You Can Contribute
